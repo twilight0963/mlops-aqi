@@ -1,0 +1,42 @@
+# Single source of truth for training. src/train.py reads this file;
+# change values here, not in code, so every MLflow run is reproducible.
+
+seed: 42
+
+data:
+  train_path: data/train.csv
+  dvc_file: data/train.csv.dvc   # train.csv must match this md5 or training aborts
+  use_clean: false               # true -> apply src.clean.clean() (Abhinav) before splitting
+
+features:
+  numeric: [pm25_today, wind_kmph, humidity_pct, temp_c, traffic_index, stubble_fires]
+  categorical: [day_type, station_zone]
+  target: pm25_next_day
+  # Never used as features. pm25_measured_next_day leaks the target
+  # (it is not in holdout_features.csv and is measured the day we predict).
+  drop: [record_id, date, pm25_measured_next_day]
+
+split:
+  method: time        # chronological: fit on the past, validate on the most recent dates
+  date_col: date
+  test_size: 0.2      # fraction of rows (rounded to a date boundary) held out for validation
+
+mlflow:
+  tracking_uri: sqlite:///mlflow.db
+  experiment_name: mp221-pm25-next-day
+  registered_model_name: mp221-pm25-model
+
+# Each entry becomes one MLflow run. random_state is set from `seed`.
+runs:
+  - name: ridge_baseline
+    model: ridge
+    params: {alpha: 1.0}
+  - name: rf_200
+    model: random_forest
+    params: {n_estimators: 200, max_depth: 10, min_samples_leaf: 2}
+  - name: hgb_default
+    model: hist_gb
+    params: {learning_rate: 0.1, max_iter: 200}
+  - name: hgb_slow
+    model: hist_gb
+    params: {learning_rate: 0.05, max_iter: 400, max_leaf_nodes: 15}

@@ -35,3 +35,6 @@ htmlcov/
 # Temporary output
 explore_output.txt
 predictions/
+# MLflow local tracking/registry store
+mlflow.db
+mlartifacts/
