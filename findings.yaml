@@ -38,9 +38,9 @@ data_issues:
     true_levels: null      # how many real categories there are after cleaning
 
 tracking:
-  experiment_name: null
+  experiment_name: "mp221-pm25-next-day"
   best_run_id: null        # the MLflow run id of your v1 model
-  registered_model_name: null
+  registered_model_name: "mp221-pm25-model"
   champion_version: null
 
 monitoring:

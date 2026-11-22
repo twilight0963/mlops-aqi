@@ -61,3 +61,16 @@ def time_split(df, date_col, test_size):
     if train_mask.all() or not train_mask.any():
         raise ValueError("Split produced an empty train or validation set.")
     return df[train_mask].copy(), df[~train_mask].copy()
+
+
+def split_later(df, frac=0.7, date_col="date", id_col="record_id"):
+    """Shared Stage 4 split of later.csv: first `frac` of rows by date vs the rest.
+
+    v2 trains on the first part; v1 and v2 are both scored on the second part.
+    Everyone must use this function so the rows line up exactly. Ties on the
+    same date are broken by record_id, so the result is deterministic.
+    """
+    ordered = df.assign(_d=pd.to_datetime(df[date_col])).sort_values(
+        ["_d", id_col], kind="stable").drop(columns="_d")
+    cut = int(len(ordered) * frac)
+    return ordered.iloc[:cut].copy(), ordered.iloc[cut:].copy()
