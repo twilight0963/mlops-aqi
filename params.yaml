@@ -6,7 +6,7 @@ seed: 42
 data:
   train_path: data/train.csv
   dvc_file: data/train.csv.dvc   # train.csv must match this md5 or training aborts
-  use_clean: false               # true -> apply src.clean.clean() (Abhinav) before splitting
+  use_clean: true               # true -> apply src.clean.clean() (Abhinav) before splitting
 
 features:
   numeric: [pm25_today, wind_kmph, humidity_pct, temp_c, traffic_index, stubble_fires]

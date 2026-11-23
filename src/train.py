@@ -36,13 +36,16 @@ def git_commit():
 
 
 def prepare_data(params):
-    """Load (DVC-verified) train.csv, optionally clean it, and split by date."""
+    """Load DVC-verified data and split it by date."""
     df, data_info = load_train(params)
-    if params["data"]["use_clean"]:
-        from src.clean import clean  # imported only when enabled (Abhinav's module)
-        df = clean(df)
+
     s = params["split"]
-    train_df, val_df = time_split(df, s["date_col"], s["test_size"])
+    train_df, val_df = time_split(
+        df,
+        s["date_col"],
+        s["test_size"],
+    )
+
     return train_df, val_df, data_info
 
 
