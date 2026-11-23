@@ -44,7 +44,13 @@ def load_train(params):
             "Run `dvc checkout` or re-track the data before training."
         )
     info = {"data_sha256": file_sha256(path), "data_md5_dvc": expected}
-    return pd.read_csv(path), info
+    df = pd.read_csv(path)
+
+    if params["data"].get("use_clean", False):
+        from src.clean import clean
+        df = clean(df, params.get("cleaning", {}))
+
+    return df, info
 
 
 def time_split(df, date_col, test_size):

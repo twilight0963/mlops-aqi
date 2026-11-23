@@ -16,39 +16,55 @@ STATION_ZONE_MAP = {
 }
 
 
-def clean(df: pd.DataFrame) -> pd.DataFrame:
-    """Clean the AQI dataset by removing duplicates, normalizing categories,
-    and dropping leakage columns.
-    """
-    df = df.copy()
+def clean(df: pd.DataFrame, rules=None) -> pd.DataFrame:
+    """Clean training data using the rules configured in params.yaml."""
 
-    # Remove duplicate records
-    df = df.drop_duplicates()
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("clean() expects a pandas DataFrame")
 
-    # Normalize day_type
-    if "day_type" in df.columns:
-        df["day_type"] = (
-            df["day_type"]
-            .astype("string")
-            .str.strip()
-            .str.lower()
-            .map(DAY_TYPE_MAP)
+    rules = rules or {}
+    result = df.copy(deep=True)
+
+    # 1. Remove duplicate rows.
+    result = result.drop_duplicates().copy()
+
+    # 2. Normalize category spelling and whitespace.
+    if "day_type" in result.columns:
+        result["day_type"] = (
+            result["day_type"].astype("string").str.strip().str.lower()
         )
 
-    # Normalize station_zone
-    if "station_zone" in df.columns:
-        df["station_zone"] = (
-            df["station_zone"]
-            .astype("string")
-            .str.strip()
-            .str.lower()
+    if "station_zone" in result.columns:
+        result["station_zone"] = (
+            result["station_zone"].astype("string").str.strip().str.lower()
             .map(STATION_ZONE_MAP)
+            .fillna(result["station_zone"].astype("string").str.strip())
         )
 
-    # Remove data leakage
-    df = df.drop(
+    # 3. Correct the Central-zone PM2.5 unit mix-up.
+    unit = rules.get("unit_mixup", {})
+    group_col = unit.get("group_column", "station_zone")
+    group_value = str(unit.get("group_value", "central")).strip().lower()
+    column = unit.get("column", "pm25_today")
+    threshold = unit.get("wrong_value_min", 1000)
+    factor = unit.get("factor", 1000)
+
+    if group_col in result.columns and column in result.columns:
+        affected = (
+            result[group_col].astype("string").str.strip().str.lower().eq(group_value)
+            & result[column].gt(threshold)
+        )
+        result.loc[affected, column] = result.loc[affected, column] / factor
+
+    # 4. Replace known sentinel values with NaN.
+    for col, values in rules.get("sentinels", {"wind_kmph": [9999]}).items():
+        if col in result.columns:
+            result[col] = result[col].replace(values, float("nan"))
+
+    # 5. Drop the target-leaking column.
+    result = result.drop(
         columns=["pm25_measured_next_day"],
         errors="ignore",
     )
 
-    return df
+    return result

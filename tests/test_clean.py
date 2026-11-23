@@ -43,3 +43,31 @@ def test_clean_does_not_modify_original_dataframe():
     clean(df)
 
     pd.testing.assert_frame_equal(df, original)
+
+
+def test_clean_corrects_central_unit_mixup():
+    df = pd.DataFrame({
+        "station_zone": ["Central", "Industrial"],
+        "pm25_today": [166500.0, 156.3],
+    })
+
+    result = clean(df, {
+        "unit_mixup": {
+            "group_column": "station_zone",
+            "group_value": "central",
+            "column": "pm25_today",
+            "wrong_value_min": 1000,
+            "factor": 1000,
+        }
+    })
+
+    assert result["pm25_today"].tolist() == [166.5, 156.3]
+
+
+def test_clean_replaces_wind_sentinel():
+    df = pd.DataFrame({"wind_kmph": [12.5, 9999.0]})
+
+    result = clean(df, {"sentinels": {"wind_kmph": [9999]}})
+
+    assert result["wind_kmph"].iloc[0] == 12.5
+    assert pd.isna(result["wind_kmph"].iloc[1])
