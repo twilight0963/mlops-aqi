@@ -1,0 +1,8 @@
+services:
+  api:
+    build: .
+    image: aqi-prediction-api:v1
+    container_name: aqi-api
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

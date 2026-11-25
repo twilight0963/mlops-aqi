@@ -47,7 +47,21 @@ def register(params, allow_baseline=False):
         version = existing[0].version
         print(f"Run {run_id} already registered as {name} v{version}; not creating a new version.")
     else:
-        mv = mlflow.register_model(f"runs:/{run_id}/model", name)
+        # mv = mlflow.register_model(f"runs:/{run_id}/model", name)
+        logged_models = client.search_logged_models(
+            experiment_ids=[experiment_id],
+            filter_string=f"source_run_id = '{run_id}'",
+            max_results=10,
+            )
+        if not logged_models:
+            raise RuntimeError(f"No logged model found for run {run_id}")
+        logged_model = next(
+            (m for m in logged_models if m.status == "READY"),
+            None,
+        )
+        if logged_model is None:
+            raise RuntimeError(f"No READY model found for run {run_id}")
+        mv = mlflow.register_model(f"models:/{logged_model.model_id}", name)
         version = mv.version
         client.set_model_version_tag(name, version, "mae", f"{run.data.metrics['mae']:.4f}")
         client.set_model_version_tag(name, version, "use_clean", run.data.params.get("use_clean"))

@@ -35,8 +35,12 @@ predictions/*
 !predictions/.gitkeep
 !predictions/holdout_predictions.csv
 
-# MLflow: mlflow.db is committed (runs + registry metadata).
-# mlruns/ holds artifacts at absolute local paths, so it is not portable;
-# the API loads the exported models/model.joblib instead.
+# # MLflow: mlflow.db is committed (runs + registry metadata).
+# # mlruns/ holds artifacts at absolute local paths, so it is not portable;
+# # the API loads the exported models/model.joblib instead.
+# mlruns/
+# mlartifacts/
+# MLflow local tracking data
+mlflow.db
 mlruns/
 mlartifacts/

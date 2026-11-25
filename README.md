@@ -21,12 +21,12 @@ The project predicts next-day PM2.5 levels for the Guwahati Clean Air Cell using
 - `k8s/` — Kubernetes deployment and service manifests.
 - `.github/workflows/` — CI configuration and workflows.
 - `predictions/` — Holdout dataset predictions.
-- `findings.yaml` — Completed findings for the marking tool.
+- `findings.yaml` — Findings for the marking tool.
 - `params.yaml` — Central configuration for data, features, training and model settings.
 
 ## Data Preparation and Cleaning
 
-The data preparation pipeline is implemented in `src/clean.py`. It prepares the datasets before model training and prediction through the following operations:
+The data preparation pipeline is implemented in `src/clean.py`. It prepares datasets before model training and prediction through the following operations:
 
 - Removes duplicate records.
 - Normalizes categorical values.
@@ -38,19 +38,17 @@ The cleaning function is integrated with the training data loader through the `d
 
 ### Dataset Cleaning Verification
 
-The cleaning pipeline was tested on all three project datasets.
-
 | Dataset | Original Rows | Cleaned Rows | Missing Values After Cleaning |
 |---|---:|---:|---:|
 | `train.csv` | 1,058 | 1,000 | 38 |
 | `later.csv` | 300 | 300 | 0 |
 | `holdout_features.csv` | 250 | 250 | 0 |
 
-The training dataset was reduced from 1,058 to 1,000 rows after duplicate removal. The later and holdout datasets retained all their original records.
+The training dataset was reduced from 1,058 to 1,000 rows after duplicate removal. The later and holdout datasets retained their original records.
 
 ### Feature Selection
 
-The `select_features()` function in `src/features.py` ensures that the same eight input features are selected consistently across the training, monitoring and holdout datasets.
+The `select_features()` function in `src/features.py` ensures that the same eight input features are selected consistently across training, monitoring and holdout datasets.
 
 The eight model input features are:
 
@@ -67,7 +65,7 @@ The `record_id` and `date` columns are not passed as model input features. The h
 
 ## How to Run
 
-Use Python 3.11 (the same version used in CI). Run all commands from the repository root.
+Use Python 3.11 (the same version used in CI). Run commands from the repository root.
 
 ### 1. Create and activate a virtual environment
 
@@ -92,7 +90,7 @@ python -m pytest -v
 
 ## Training and Model Registry
 
-All project settings, including the random seed, chronological split, features, MLflow configuration and model parameters, are maintained centrally in `params.yaml`.
+Project settings, including the random seed, chronological split, features, MLflow configuration and model parameters, are maintained centrally in `params.yaml`.
 
 ### Train models
 
@@ -116,44 +114,147 @@ The registration script selects the best eligible run based on the lowest valida
 mlflow ui --backend-store-uri sqlite:///mlflow.db
 ```
 
-Open the following address in your browser:
-
-`http://127.0.0.1:5000`
+Open `http://127.0.0.1:5000` in your browser.
 
 ### Training and Experiment Details
 
-- **Validation strategy:** Chronological validation, with approximately the latest 20% of dates in `train.csv` reserved for validation.
-- **Preprocessing:** Imputation, scaling and one-hot encoding of `day_type` and `station_zone` are implemented as part of the Scikit-learn Pipeline.
-- **Data integrity:** Each MLflow run logs the `data_sha256` hash of the original training dataset, verified against the DVC metadata.
-- **Experiment tracking:** Runs record
+- **Validation strategy:** Chronological validation, with approximately the latest 20% of dates reserved for validation.
+- **Preprocessing:** Imputation, scaling and one-hot encoding of categorical features are implemented in the Scikit-learn Pipeline.
+- **Data integrity:** Training runs record the SHA-256 hash of the original training dataset.
+- **Experiment tracking:** MLflow records model parameters, validation MAE, training MAE and dataset information.
+- **Model selection:** The model with the lowest validation MAE is selected.
+- **Model registry:** The selected model is registered as `mp221-pm25-model` with the `champion` alias.
 
 ## Loading the Model and Predicting
 
-`src/predict.py` is the single inference path. It applies the same value fixes as training (`src.clean.fix_values`) and `select_features()`, and it never drops rows.
+`src/predict.py` provides the inference functions. It applies the same value fixes as training and uses `select_features()` to maintain consistent model inputs.
 
 ```python
 from src.predict import load_model, predict_one, predict_frame
 
-model = load_model()                      # models:/mp221-pm25-model@champion
-v1 = load_model("1")                      # registry version 1 (v1)
-api_model = load_model("models/model.joblib")  # exported champion, no MLflow store needed
-
-predict_one(model, request_body_dict)     # float, for POST /predict
-predict_frame(model, df)                  # numpy array, one prediction per row
+model = load_model()
+prediction = predict_one(model, request_body_dict)
+predictions = predict_frame(model, df)
 ```
+
+Export the champion model for portable serving:
 
 ```bash
-python -m src.predict              # demo prediction with @champion
-python -m src.predict --version 1  # demo with v1
-python -m src.predict --export     # write @champion to models/model.joblib (the API loads this)
+python -m src.predict --export
 ```
 
-v1's MAE per `station_zone` on `later.csv`:
+The exported model is saved to `models/model.joblib`.
 
-```python
-import pandas as pd
-from src.drift import mae_v1_by_zone
-mae_v1_by_zone(pd.read_csv("data/later.csv"))
+## Model Serving with FastAPI
+
+The API is implemented in `src/api.py` using FastAPI and Pydantic for request validation.
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/` | Returns API information |
+| GET | `/health` | Checks application and model status |
+| POST | `/predict` | Predicts next-day PM2.5 |
+
+### Run the API locally
+
+Activate the virtual environment:
+
+```bash
+source .venv/bin/activate
 ```
 
-`mlflow.db` is committed; `mlruns/` is not. MLflow stores absolute artifact paths, so registry loading only works on the machine that trained the model. Everywhere else (Docker, CI), use `models/model.joblib`.
+If Docker is already running on port 8000, stop the container before starting the local server:
+
+```bash
+docker compose down
+```
+
+Start the API:
+
+```bash
+uvicorn src.api:app --host 0.0.0.0 --port 8000
+```
+
+Open `http://localhost:8000/docs` to access the interactive Swagger interface.
+
+### Example prediction request
+
+Send the following JSON to `POST /predict`:
+
+```json
+{
+  "pm25_today": 120.0,
+  "wind_kmph": 8.0,
+  "humidity_pct": 65.0,
+  "temp_c": 24.0,
+  "traffic_index": 7.0,
+  "stubble_fires": 2.0,
+  "day_type": "weekday",
+  "station_zone": "Central"
+}
+```
+
+The API validates the input and returns a next-day PM2.5 prediction.
+
+## Docker Deployment
+
+The application is containerized using Docker and Docker Compose.
+
+### Build and start the API
+
+```bash
+docker compose up --build -d
+```
+
+### Check container status
+
+```bash
+docker compose ps
+```
+
+### View API logs
+
+```bash
+docker compose logs api
+```
+
+The API is available at:
+
+- API: `http://localhost:8000`
+- Swagger documentation: `http://localhost:8000/docs`
+- Health endpoint: `http://localhost:8000/health`
+
+### Stop the container
+
+```bash
+docker compose down
+```
+
+The Docker image loads the exported model from `models/model.joblib`. This allows the API container to serve predictions without depending on the local MLflow tracking database.
+
+## Automated Testing
+
+Run the complete test suite:
+
+```bash
+python -m pytest -v
+```
+
+The currently verified test result is **31 passed**.
+
+The tests cover data processing, feature engineering, model training and API functionality.
+
+The API was also verified through Swagger UI:
+
+- `GET /health` returned HTTP 200 with the model loaded.
+- `POST /predict` returned HTTP 200 with a PM2.5 prediction.
+
+## MLflow Artifact Portability
+
+MLflow tracking databases and artifact paths may contain machine-specific information.
+
+The local `mlflow.db` and `mlruns/` directory should not be committed to Git.
+
+For portable model serving, use the exported `models/model.joblib` artifact. The Docker API loads this file directly and does not depend on the local MLflow registry.
