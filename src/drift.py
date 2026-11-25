@@ -2,6 +2,10 @@
 import numpy as np
 import pandas as pd
 
+from src.clean import clean
+from src.config import load_params
+from src.predict import load_model, predict_frame
+
 
 def calculate_psi(expected, actual, bins=10):
     expected = pd.Series(expected).dropna().astype(float)
@@ -68,3 +72,15 @@ def mae_by_group(
         .rename("mae")
         .reset_index()
     )
+
+
+def mae_v1_by_zone(df, params=None, version="1"):
+    """v1's MAE on df (e.g. later.csv) for each station_zone.
+
+    Loads registry version 1 (v1, trained on cleaned train.csv only) and scores
+    it through the same prediction path the API uses.
+    """
+    params = params or load_params()
+    data = clean(df, params.get("cleaning", {}))
+    data["predicted"] = predict_frame(load_model(version, params), data, params)
+    return mae_by_group(data, params["features"]["target"], "predicted", group_col="station_zone")

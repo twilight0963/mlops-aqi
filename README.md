@@ -126,5 +126,34 @@ Open the following address in your browser:
 - **Preprocessing:** Imputation, scaling and one-hot encoding of `day_type` and `station_zone` are implemented as part of the Scikit-learn Pipeline.
 - **Data integrity:** Each MLflow run logs the `data_sha256` hash of the original training dataset, verified against the DVC metadata.
 - **Experiment tracking:** Runs record
-- The model loads with `mlflow.pyfunc.load_model("models:/mp221-pm25-model@champion")`; pass inputs
-  through `src.features.select_features()` so columns and dtypes match the logged signature.
+
+## Loading the Model and Predicting
+
+`src/predict.py` is the single inference path. It applies the same value fixes as training (`src.clean.fix_values`) and `select_features()`, and it never drops rows.
+
+```python
+from src.predict import load_model, predict_one, predict_frame
+
+model = load_model()                      # models:/mp221-pm25-model@champion
+v1 = load_model("1")                      # registry version 1 (v1)
+api_model = load_model("models/model.joblib")  # exported champion, no MLflow store needed
+
+predict_one(model, request_body_dict)     # float, for POST /predict
+predict_frame(model, df)                  # numpy array, one prediction per row
+```
+
+```bash
+python -m src.predict              # demo prediction with @champion
+python -m src.predict --version 1  # demo with v1
+python -m src.predict --export     # write @champion to models/model.joblib (the API loads this)
+```
+
+v1's MAE per `station_zone` on `later.csv`:
+
+```python
+import pandas as pd
+from src.drift import mae_v1_by_zone
+mae_v1_by_zone(pd.read_csv("data/later.csv"))
+```
+
+`mlflow.db` is committed; `mlruns/` is not. MLflow stores absolute artifact paths, so registry loading only works on the machine that trained the model. Everywhere else (Docker, CI), use `models/model.joblib`.

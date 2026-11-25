@@ -22,11 +22,21 @@ def clean(df: pd.DataFrame, rules=None) -> pd.DataFrame:
     if not isinstance(df, pd.DataFrame):
         raise TypeError("clean() expects a pandas DataFrame")
 
+    # 1. Remove duplicate rows.
+    result = df.drop_duplicates().copy()
+
+    # 2-4. Fix values row by row (shared with prediction).
+    result = fix_values(result, rules)
+
+    # 5. Drop the target-leaking column.
+    return result.drop(columns=["pm25_measured_next_day"], errors="ignore")
+
+
+def fix_values(df: pd.DataFrame, rules=None) -> pd.DataFrame:
+    """Row-wise fixes used for both training and prediction. Never drops rows."""
+
     rules = rules or {}
     result = df.copy(deep=True)
-
-    # 1. Remove duplicate rows.
-    result = result.drop_duplicates().copy()
 
     # 2. Normalize category spelling and whitespace.
     if "day_type" in result.columns:
@@ -60,11 +70,5 @@ def clean(df: pd.DataFrame, rules=None) -> pd.DataFrame:
     for col, values in rules.get("sentinels", {"wind_kmph": [9999]}).items():
         if col in result.columns:
             result[col] = result[col].replace(values, float("nan"))
-
-    # 5. Drop the target-leaking column.
-    result = result.drop(
-        columns=["pm25_measured_next_day"],
-        errors="ignore",
-    )
 
     return result
