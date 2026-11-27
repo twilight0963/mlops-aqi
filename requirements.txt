@@ -10,7 +10,7 @@ python-dateutil==4.0.0
 PyYAML==6.0.4
 scikit-learn==1.9.1
 tzdata==2026.6
-fastapi
-uvicorn[standard]
-pydantic
-httpx
+fastapi==0.165.0
+uvicorn[standard]==0.54.0
+pydantic==2.14.4
+httpx==0.29.0
