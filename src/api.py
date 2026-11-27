@@ -2,6 +2,8 @@
 """FastAPI application for next-day PM2.5 prediction."""
 
 from contextlib import asynccontextmanager
+import json
+import logging
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -9,6 +11,21 @@ from pydantic import BaseModel, Field
 from src.predict import load_model, predict_one
 
 model = None
+
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        return json.dumps({"level": record.levelname, "event": record.getMessage(),
+                           "logger": record.name}, ensure_ascii=False)
+
+
+logger = logging.getLogger("mp221.api")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(JsonFormatter())
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
 
 
 class PredictionInput(BaseModel):
@@ -30,9 +47,9 @@ async def lifespan(app: FastAPI):
     try:
         model = load_model("models/model.joblib")
         # model = load_model("champion")
-        print("Champion model loaded successfully.")
+        logger.info("model_loaded")
     except Exception as exc:
-        print(f"Model loading failed: {exc}")
+        logger.exception("model_load_failed")
         raise
     yield
     model = None
@@ -75,13 +92,15 @@ def predict(request: PredictionInput):
             model,
             request.model_dump(),
         )
+        logger.info("prediction_succeeded")
         return {
             "predicted_pm25_next_day": round(prediction, 2),
             "unit": "µg/m³",
             "model": "mp221-pm25-model@champion",
         }
     except Exception as exc:
+        logger.exception("prediction_failed")
         raise HTTPException(
             status_code=500,
-            detail=f"Prediction failed: {str(exc)}",
+            detail="Prediction failed",
         ) from exc

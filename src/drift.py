@@ -4,7 +4,6 @@ import pandas as pd
 
 from src.clean import clean
 from src.config import load_params
-from src.predict import load_model, predict_frame
 
 
 def calculate_psi(expected, actual, bins=10):
@@ -14,8 +13,8 @@ def calculate_psi(expected, actual, bins=10):
     if expected.empty or actual.empty:
         raise ValueError("Both datasets must contain valid values.")
 
-    if bins < 1:
-        raise ValueError("bins must be at least 1.")
+    if not isinstance(bins, int) or bins < 2:
+        raise ValueError("bins must be an integer of at least 2.")
 
     edges = np.unique(
         np.quantile(expected, np.linspace(0, 1, bins + 1))
@@ -24,19 +23,16 @@ def calculate_psi(expected, actual, bins=10):
     if len(edges) < 2:
         return 0.0
 
+    # The outer bins also include values outside the reference range.
+    edges[0], edges[-1] = -np.inf, np.inf
     expected_counts = np.histogram(expected, bins=edges)[0]
     actual_counts = np.histogram(actual, bins=edges)[0]
 
-    expected_counts[0] += np.sum(expected < edges[0])
-    expected_counts[-1] += np.sum(expected > edges[-1])
-
-    actual_counts[0] += np.sum(actual < edges[0])
-    actual_counts[-1] += np.sum(actual > edges[-1])
-
     eps = 1e-6
 
-    expected_pct = np.clip(expected_counts / len(expected), eps, None)
-    actual_pct = np.clip(actual_counts / len(actual), eps, None)
+    # Smooth each bin and renormalize so the distributions still sum to one.
+    expected_pct = (expected_counts + eps) / (len(expected) + eps * len(expected_counts))
+    actual_pct = (actual_counts + eps) / (len(actual) + eps * len(actual_counts))
 
     psi = np.sum(
         (actual_pct - expected_pct)
@@ -50,12 +46,13 @@ def mae_by_group(
     df,
     actual_col,
     predicted_col,
-    group_col="zone"
+    group_col="station_zone"
 ):
     required = [actual_col, predicted_col, group_col]
 
-    if not all(col in df.columns for col in required):
-        raise ValueError("Required columns are missing.")
+    missing = set(required) - set(df.columns)
+    if missing:
+        raise ValueError(f"Required columns are missing: {sorted(missing)}")
 
     data = df[required].dropna().copy()
 
@@ -80,7 +77,31 @@ def mae_v1_by_zone(df, params=None, version="1"):
     Loads registry version 1 (v1, trained on cleaned train.csv only) and scores
     it through the same prediction path the API uses.
     """
+    from src.predict import load_model, predict_frame
     params = params or load_params()
     data = clean(df, params.get("cleaning", {}))
     data["predicted"] = predict_frame(load_model(version, params), data, params)
     return mae_by_group(data, params["features"]["target"], "predicted", group_col="station_zone")
+
+
+def feature_psi(reference, current, columns, bins=10):
+    """Compute reference-quantile PSI for each numeric feature."""
+    return {col: calculate_psi(reference[col], current[col], bins) for col in columns}
+
+
+def compare_versions(later, v1, v2, params=None):
+    """Score both supplied fitted models on the same last 30% of dated rows."""
+    from sklearn.metrics import mean_absolute_error
+    from src.data import split_later
+    from src.predict import predict_frame
+
+    params = params or load_params()
+    data = clean(later, params.get("cleaning", {}))
+    _, check = split_later(data)
+    target = params["features"]["target"]
+    if check.empty or check[target].isna().any():
+        raise ValueError("Check rows need non-missing targets.")
+    mae_v1 = float(mean_absolute_error(check[target], predict_frame(v1, check, params)))
+    mae_v2 = float(mean_absolute_error(check[target], predict_frame(v2, check, params)))
+    return {"mae_v1_on_check": mae_v1, "mae_v2_on_check": mae_v2,
+            "decision": "promote" if mae_v2 <= 0.88 * mae_v1 else "keep"}
