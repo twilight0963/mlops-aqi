@@ -44,10 +44,10 @@ monitoring:
     stubble_fires: 9.621977405368815
   most_drifted_feature: stubble_fires
   mae_by_group:
-    Central: null
-    Residential: null
-    Industrial: null
-  worst_served_group: null
-  mae_v1_on_check: null
-  mae_v2_on_check: null
-  decision: null
+    Central: 125.41416527631661
+    Residential: 23.30605299791523
+    Industrial: 24.292811482456916
+  worst_served_group: Central
+  mae_v1_on_check: 63.50823377056331
+  mae_v2_on_check: 40.9246082164248
+  decision: promote

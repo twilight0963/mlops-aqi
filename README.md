@@ -268,10 +268,20 @@ training or monitoring, supply the original datasets at `data/train.csv` and
 the unit tests without those data files.
 
 The six PSI values in `findings.yaml` use the supplied DVC-matching train and
-later CSVs after `clean()`, with ten reference quantile bins. The checked-in
-model export does not establish which registry version it represents, so the
-v1/v2 comparison and per-version MAE fields remain unset until both versioned
-models are available and evaluated on the same check rows.
+later CSVs after `clean()`, with ten reference quantile bins.
+
+Run `python -m src.monitor` after restoring the two original CSVs to `data/`.
+This prints the recorded monitoring result and checks both DVC hashes. The
+original MLflow v1 artifact is unavailable in this clone, so the script
+reproduces the registered v1 Ridge run from its recorded settings (alpha 1,
+seed 42, chronological train split). It checks that validation MAE matches
+8.8431305763 and predictions match the exported `model.joblib`. V2 is a
+documented local candidate: the same Ridge pipeline retrained on all 1,000
+cleaned training rows plus the first 210 cleaned later rows. Both models are
+compared only on the final 90 later rows. V1 per-zone MAE uses all 300 later
+rows. The resulting local decision is `promote` (40.9246 <= 0.88 * 63.5082).
+This does not register v2 or change the API's exported model; `tracking` fields
+remain null until an actual MLflow run and registration are completed.
 
 The API was also verified through Swagger UI:
 
