@@ -33,7 +33,7 @@ tracking:
   experiment_name: mp221-pm25-next-day
   best_run_id: ec2a3107a1e1437289128c9d2f27b1d7
   registered_model_name: mp221-pm25-model
-  champion_version: null
+  champion_version: 2
 monitoring:
   psi:
     pm25_today: 0.027206533712945402

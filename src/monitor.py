@@ -1,4 +1,4 @@
-"""Reproduce the v1 Ridge run and evaluate a later-data v2 candidate.
+"""Reproduce the v1 and v2 Ridge models and the Stage 4 monitoring numbers.
 
 Run from the repository root: python -m src.monitor
 The check portion of later.csv is never used in either model's training.
@@ -38,15 +38,14 @@ def evaluate():
     val_mae = mean_absolute_error(validation[target], v1.predict(select_features(validation, params)))
     if not np.isclose(val_mae, 8.843130576342366, atol=1e-7):
         raise ValueError("Reproduced v1 does not match the recorded validation MAE")
-    exported = joblib.load(repo_path("models/model.joblib"))
-    if not np.allclose(v1.predict(select_features(validation, params)),
-                       exported.predict(select_features(validation, params)), atol=1e-7):
-        raise ValueError("Exported model does not match reproduced v1")
 
-    # Documented local v2 choice: same Ridge pipeline, retrained using all
-    # cleaned train rows and only the early 70% of later rows.
+    # v2 (registry version 2, see src/retrain.py): same Ridge pipeline, retrained
+    # using all cleaned train rows and only the early 70% of later rows.
     v2 = fit(pd.concat([train, early], ignore_index=True))
     check_x = select_features(check, params)
+    exported = joblib.load(repo_path("models/model.joblib"))  # promoted @champion
+    if not np.allclose(v2.predict(check_x), exported.predict(check_x), atol=1e-7):
+        raise ValueError("Exported model does not match reproduced v2")
     mae_v1 = float(mean_absolute_error(check[target], v1.predict(check_x)))
     mae_v2 = float(mean_absolute_error(check[target], v2.predict(check_x)))
     zones = later.copy()

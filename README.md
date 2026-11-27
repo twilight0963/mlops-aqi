@@ -242,7 +242,7 @@ Run the complete test suite:
 python -m pytest -v
 ```
 
-The currently verified test result is **31 passed**.
+The currently verified test result is **35 passed**.
 
 The tests cover data processing, feature engineering, model training and API functionality.
 
@@ -270,18 +270,31 @@ the unit tests without those data files.
 The six PSI values in `findings.yaml` use the supplied DVC-matching train and
 later CSVs after `clean()`, with ten reference quantile bins.
 
-Run `python -m src.monitor` after restoring the two original CSVs to `data/`.
-This prints the recorded monitoring result and checks both DVC hashes. The
-original MLflow v1 artifact is unavailable in this clone, so the script
-reproduces the registered v1 Ridge run from its recorded settings (alpha 1,
-seed 42, chronological train split). It checks that validation MAE matches
-8.8431305763 and predictions match the exported `model.joblib`. V2 is a
-documented local candidate: the same Ridge pipeline retrained on all 1,000
-cleaned training rows plus the first 210 cleaned later rows. Both models are
-compared only on the final 90 later rows. V1 per-zone MAE uses all 300 later
-rows. The resulting local decision is `promote` (40.9246 <= 0.88 * 63.5082).
-This does not register v2 or change the API's exported model; `tracking` fields
-remain null until an actual MLflow run and registration are completed.
+## Retraining, promotion and holdout predictions (Stage 4)
+
+```bash
+python -m src.retrain          # log + register v2, compare, promote, export
+python -m src.predict_holdout  # @champion -> predictions/holdout_predictions.csv
+python -m src.monitor          # reproduce every Stage 4 number without mlruns/
+```
+
+`src.retrain` refits the v1 configuration (`ridge_baseline`: Ridge, alpha 1,
+seed 42) on all 1,000 cleaned training rows plus the first 210 cleaned later
+rows (`split_later`), logs it as MLflow run `v2_train_plus_later70`, and
+registers it as `mp221-pm25-model` version 2 (tag `role=v2`; rerunning reuses
+it). `compare_versions` scores registry v1 and v2 on the final 90 later rows:
+MAE 63.5082 vs 40.9246, so the decision is `promote` (40.9246 <= 0.88 *
+63.5082). `@champion` now points to version 2 and is exported to
+`models/model.joblib`, which the API serves.
+
+`src.predict_holdout` predicts all 250 rows of `data/holdout_features.csv`
+with `@champion` and writes exactly `record_id,prediction`.
+
+`src.monitor` needs only the original CSVs in `data/` (it checks both DVC
+hashes), because `mlruns/` is not in Git. It reproduces v1 from its recorded
+settings and checks the validation MAE 8.8431305763, reproduces v2 and checks
+that it matches the exported `model.joblib`, and prints PSI, v1 per-zone MAE
+(all 300 later rows) and the v1/v2 comparison.
 
 The API was also verified through Swagger UI:
 
