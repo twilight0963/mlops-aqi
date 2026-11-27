@@ -31,7 +31,7 @@ data_issues:
     true_levels: null
 tracking:
   experiment_name: mp221-pm25-next-day
-  best_run_id: null
+  best_run_id: ec2a3107a1e1437289128c9d2f27b1d7
   registered_model_name: mp221-pm25-model
   champion_version: null
 monitoring:

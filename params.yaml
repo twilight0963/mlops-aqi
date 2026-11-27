@@ -25,7 +25,7 @@ split:
   test_size: 0.2
 mlflow:
   tracking_uri: sqlite:///mlflow.db
-  experiment_name: mp221-pm25-next-day-local
+  experiment_name: mp221-pm25-next-day
   registered_model_name: mp221-pm25-model
 runs:
 - name: ridge_baseline
