@@ -36,13 +36,13 @@ tracking:
   champion_version: null
 monitoring:
   psi:
-    pm25_today: null
-    wind_kmph: null
-    humidity_pct: null
-    temp_c: null
-    traffic_index: null
-    stubble_fires: null
-  most_drifted_feature: null
+    pm25_today: 0.027206533712945402
+    wind_kmph: 0.030278401261275765
+    humidity_pct: 0.02585921603773861
+    temp_c: 0.04100189393378112
+    traffic_index: 0.03255684891913437
+    stubble_fires: 9.621977405368815
+  most_drifted_feature: stubble_fires
   mae_by_group:
     Central: null
     Residential: null

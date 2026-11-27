@@ -16,7 +16,17 @@ def test_mae_by_group():
         "predicted": [12, 18, 33, 37]
     })
 
-    result = mae_by_group(df, "actual", "predicted")
+    result = mae_by_group(df, "actual", "predicted", "zone")
 
     assert result.loc[result["zone"] == "A", "mae"].iloc[0] == 2
     assert result.loc[result["zone"] == "B", "mae"].iloc[0] == 3
+
+
+def test_psi_includes_values_outside_reference_range():
+    from src.drift import calculate_psi
+    assert calculate_psi([1, 2, 3, 4], [0, 0, 0, 100], bins=2) > 0
+
+
+def test_mae_defaults_to_station_zone():
+    df = pd.DataFrame({"station_zone": ["Central"], "actual": [12], "predicted": [10]})
+    assert mae_by_group(df, "actual", "predicted").iloc[0]["mae"] == 2

@@ -246,6 +246,33 @@ The currently verified test result is **31 passed**.
 
 The tests cover data processing, feature engineering, model training and API functionality.
 
+## Monitoring and operations
+
+`src/drift.py` computes PSI from ten quantile bins of cleaned training data and
+per-zone MAE from predictions and actual next-day PM2.5. Clean `later.csv` with
+the same rules before comparing distributions. PSI is a distribution shift
+measure, not a model quality score. `compare_versions(later, v1, v2)` orders
+rows by date and record ID, scores both supplied fitted models on the last 30%,
+and promotes only when v2 MAE is at most 88% of v1 MAE. Use the same held-out
+rows for both models; do not train v2 on those rows.
+
+The `k8s/` manifests deploy four replicas of `mp221-api:1.0` with `/health`
+readiness and liveness probes and expose service `mp221-svc` on port 80.
+Build and make that image available to the cluster before applying the files.
+The API emits JSON event logs to standard error; prediction requests do not
+log personal data or feature values.
+
+The CSV files are tracked with DVC metadata and excluded from Git. To run
+training or monitoring, supply the original datasets at `data/train.csv` and
+`data/later.csv` and verify their hashes against the `.dvc` files. CI runs
+the unit tests without those data files.
+
+The six PSI values in `findings.yaml` use the supplied DVC-matching train and
+later CSVs after `clean()`, with ten reference quantile bins. The checked-in
+model export does not establish which registry version it represents, so the
+v1/v2 comparison and per-version MAE fields remain unset until both versioned
+models are available and evaluated on the same check rows.
+
 The API was also verified through Swagger UI:
 
 - `GET /health` returned HTTP 200 with the model loaded.
